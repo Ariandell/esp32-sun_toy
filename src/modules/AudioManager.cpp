@@ -1,123 +1,90 @@
 #include "AudioManager.h"
-#include "Config.h"
-#include <driver/i2s.h> 
+
+AudioManager::AudioManager() : _currentVolume(10), _trackIndex(0) {}
 
 void AudioManager::begin() {
-    _startSD();
+    _audio.setPinout(PIN_I2S_BCLK, PIN_I2S_LRC, PIN_I2S_DOUT);
+    _audio.setVolume(_currentVolume);
 }
 
 void AudioManager::loop() {
-    if (_currentMode == MODE_SD && _sdPlayer) {
-        _sdPlayer->loop();
-    }
+    _audio.loop();
 }
 
-void AudioManager::setVolume(uint8_t vol) {
-    if (_sdPlayer) _sdPlayer->setVolume(vol);
-}
-
-void AudioManager::stopSong() {
-    if (_sdPlayer && _sdPlayer->isRunning()) {
-        _sdPlayer->stopSong(); 
-    }
-}
-
-void AudioManager::playFile(String path) {
-    if (_currentMode == MODE_BLUETOOTH) toggleMode(); 
-    stopSong(); 
-    delay(50); 
+void AudioManager::setVolume(int volume) {
+    if (volume < 0) volume = 0;
+    if (volume > 21) volume = 21;
     
-    if (_sdPlayer) _sdPlayer->connecttoFS(SD, path.c_str());
+    _currentVolume = volume;
+    _audio.setVolume(_currentVolume);
 }
 
-void AudioManager::playFolder(String folder) {
-    if (_currentMode == MODE_BLUETOOTH) toggleMode();
-    stopSong();
-    delay(50);
+int AudioManager::getVolume() {
+    return _currentVolume;
+}
 
-    _playlist.clear();
-    _currentTrackIndex = 0;
-
-    File dir = SD.open(folder);
-    if (!dir || !dir.isDirectory()) return;
-
-    while (true) {
-        File entry = dir.openNextFile();
-        if (!entry) break;
-        if (!entry.isDirectory()) {
-            String name = String(entry.name());
-            if (!name.startsWith(".") && (name.endsWith(".wav") || name.endsWith(".mp3"))) {
-                _playlist.push_back(folder + "/" + name);
-            }
-        }
-        entry.close();
-    }
+void AudioManager::playFile(String filename) {
+    if (!filename.startsWith("/")) filename = "/" + filename;
     
+    Serial.print("Playing file: "); Serial.println(filename);
+    _audio.connecttoFS(SD, filename.c_str());
+}
+
+void AudioManager::playFolder(String folderPath) {
+    loadPlaylist(folderPath);
     if (_playlist.size() > 0) {
-        playFile(_playlist[0]); 
+        _trackIndex = 0;
+        playFile(_playlist[_trackIndex]);
+    } else {
+        Serial.println("Folder is empty or not found!");
     }
 }
 
 void AudioManager::playNext() {
-    if (_playlist.empty()) return;
-    stopSong();
-    delay(50); 
-
-    _currentTrackIndex++;
-    if (_currentTrackIndex >= _playlist.size()) _currentTrackIndex = 0; 
-    playFile(_playlist[_currentTrackIndex]);
-}
-
-void AudioManager::pauseResume() {
-    if (_currentMode == MODE_SD && _sdPlayer) {
-        _sdPlayer->pauseResume();
+    if (_playlist.size() == 0) return;
+    
+    _trackIndex++;
+    if (_trackIndex >= _playlist.size()) {
+        _trackIndex = 0; 
     }
+    playFile(_playlist[_trackIndex]);
 }
 
-void AudioManager::toggleMode() {
-    if (_currentMode == MODE_SD) {
-        stopSong(); 
-        delay(50);
-        _stopSD();
-        _startBluetooth();
-        _currentMode = MODE_BLUETOOTH;
-    } else {
-        _stopBluetooth();
-        _startSD();
-        _currentMode = MODE_SD;
-    }
-}
-
-void AudioManager::_startSD() {
-    if (!_sdPlayer) {
-        _sdPlayer = new Audio();
-        _sdPlayer->setPinout(PIN_I2S_BCLK, PIN_I2S_LRC, PIN_I2S_DOUT);
-    }
-}
-
-void AudioManager::_stopSD() {
-    if (_sdPlayer) { delete _sdPlayer; _sdPlayer = nullptr; }
-}
-
-void AudioManager::_startBluetooth() {
-    if (!_btPlayer) {
-        _btPlayer = new BluetoothA2DPSink();
-        i2s_pin_config_t pin_config = {
-            .bck_io_num = PIN_I2S_BCLK,
-            .ws_io_num = PIN_I2S_LRC,
-            .data_out_num = PIN_I2S_DOUT,
-            .data_in_num = I2S_PIN_NO_CHANGE
-        };
-        _btPlayer->set_pin_config(pin_config);
-        _btPlayer->start("SunToy Speaker");
-    }
-}
-
-void AudioManager::_stopBluetooth() {
-    if (_btPlayer) { _btPlayer->end(); delete _btPlayer; _btPlayer = nullptr; }
+void AudioManager::stop() {
+    _audio.stopSong();
 }
 
 bool AudioManager::isPlaying() {
-    if (_currentMode == MODE_SD && _sdPlayer) return _sdPlayer->isRunning();
-    return (_currentMode == MODE_BLUETOOTH) && (_btPlayer != nullptr);
+    return _audio.isRunning();
+}
+
+void AudioManager::startBluetooth() {
+}
+
+void AudioManager::stopBluetooth() {
+}
+
+void AudioManager::loadPlaylist(String folder) {
+    _playlist.clear();
+    if (!SD.exists(folder)) {
+        Serial.println("Folder does not exist: " + folder);
+        return;
+    }
+
+    File dir = SD.open(folder);
+    if (!dir || !dir.isDirectory()) return;
+
+    File file = dir.openNextFile();
+    while (file) {
+        if (!file.isDirectory()) {
+            String fname = String(folder + "/" + file.name());
+            String fnameUpper = fname;
+            fnameUpper.toUpperCase();
+            if (fnameUpper.endsWith(".MP3") || fnameUpper.endsWith(".WAV")) {
+                _playlist.push_back(fname);
+                Serial.print("Added to playlist: "); Serial.println(fname);
+            }
+        }
+        file = dir.openNextFile();
+    }
 }

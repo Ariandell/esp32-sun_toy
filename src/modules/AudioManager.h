@@ -1,39 +1,30 @@
 #pragma once
 #include <Arduino.h>
 #include <Audio.h>
-#include <BluetoothA2DPSink.h>
 #include <vector>
 #include <SD.h>
-
-enum AudioMode { MODE_SD, MODE_BLUETOOTH };
+#include "Config.h"
 
 class AudioManager {
 public:
+    AudioManager();
     void begin();
     void loop();
-    
-    void setVolume(uint8_t vol);
-    void playFile(String path);
-    void playFolder(String folder);
+    void playFile(String filename);
+    void playFolder(String folderPath);
     void playNext();
-    
-    void stopSong(); 
-    void pauseResume();
-    
-    void toggleMode(); 
+    void stop();
     bool isPlaying();
-    AudioMode getMode() { return _currentMode; }
+    void setVolume(int volume); 
+    int getVolume();
+    void startBluetooth(); 
+    void stopBluetooth();  
 
 private:
-    Audio* _sdPlayer = nullptr;
-    BluetoothA2DPSink* _btPlayer = nullptr;
-    AudioMode _currentMode = MODE_SD;
-    
+    Audio _audio;
+    int _currentVolume;
     std::vector<String> _playlist;
-    int _currentTrackIndex = -1;
+    int _trackIndex;
     
-    void _startBluetooth();
-    void _stopBluetooth();
-    void _startSD();
-    void _stopSD();
+    void loadPlaylist(String folder);
 };

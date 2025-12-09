@@ -22,8 +22,6 @@ void LedController::loop() {
             _lastUpdate = millis();
             _breathVal += _breathDir;
             if (_breathVal >= 255 || _breathVal <= 0) _breathDir *= -1;
-            
-            // Синя пульсація
             _strip.setPixelColor(0, _strip.Color(0, 0, _breathVal));
             _strip.show();
         }
