@@ -322,7 +322,6 @@ void setup() {
     webPortal.onUploadComplete([]() {
         LOG_MAIN("WebPortal: Upload complete callback!");
         changeState(STATE_PLAYING);
-        // Set flag AFTER 'changeState', because changeState(WIFI->PLAYING) resets it
         isCustomFigurineActive = true; 
         audioManager.playFile(FILE_CUSTOM_STORY);
     });
@@ -364,7 +363,6 @@ void loop() {
         }
         
         if (millis() - comboStart > 3000) { 
-            // Allow WiFi mode entry regardless of active tag
             if (currentState == STATE_BT_MODE) {
                 LOG_MAIN("  Combo BLOCKED in BT mode. Flash error.");
                  for(int i=0; i<3; i++) {
@@ -383,12 +381,11 @@ void loop() {
             }
         }
     } else {
-        // Debounce: Only clear combo timer if released for > 100ms
         if (comboStart > 0) {
             if (comboReleaseStart == 0) comboReleaseStart = millis();
             
             if (millis() - comboReleaseStart > 100) {
-                comboStart = 0; // Confirmed release
+                comboStart = 0;
             }
         } else {
             comboStart = 0;
@@ -418,7 +415,6 @@ void loop() {
 
         if (currentState == STATE_PLAYING && !audioManager.isPlaying()) {
             if (!isCustomFigurineActive) {
-                LOG_MAIN("Track ended - playing next");
                 audioManager.playNext(); 
             } else {
                 LOG_MAIN("Custom story ended - returning to IDLE");
