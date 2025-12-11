@@ -10,7 +10,7 @@
 #define PIN_SD_MISO 19
 #define PIN_SD_MOSI 23
 
-// SPKR
+// AUDIO 
 #define PIN_I2S_BCLK 26
 #define PIN_I2S_LRC  25 
 #define PIN_I2S_DOUT 22
@@ -19,7 +19,7 @@
 #define PIN_NFC_SDA 21
 #define PIN_NFC_SCL 14
 
-// PERP
+// PERIPHERALS
 #define PIN_LED 2
 #define PIN_BTN_VOL 4
 #define PIN_BTN_CTRL 13
@@ -29,7 +29,4 @@
 #define DIR_TALE_3    "/tales/03"
 #define FILE_CUSTOM_STORY      "/records/custom_story.wav"
 
-#define SND_BOOT      "/system/boot.wav"
-#define SND_WIFI_ON   "/system/wifi_on.wav" 
-#define SND_WIFI_OFF  "/system/wifi_off.wav"
-#define SND_ERROR     "/system/error.wav"
+#define TAG_CMD_CUSTOM "cmd:rec" 
