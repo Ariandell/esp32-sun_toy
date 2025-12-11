@@ -7,7 +7,7 @@
 #include "modules/WebPortal.h"
 #include "modules/ButtonManager.h"
 
-#define DEBUG_MAIN 0
+#define DEBUG_MAIN 1
 #if DEBUG_MAIN
     #define LOG_MAIN(msg) Serial.println("[MAIN] " msg)
     #define LOG_MAIN_F(fmt, ...) Serial.printf("[MAIN] " fmt "\n", ##__VA_ARGS__)
@@ -16,7 +16,6 @@
     #define LOG_MAIN_F(fmt, ...)
 #endif
 
-// --- Global Objects ---
 AudioManager audioManager;
 NfcManager nfcManager(PIN_NFC_SDA, PIN_NFC_SCL);
 ThemeManager theme;
@@ -323,6 +322,8 @@ void setup() {
     webPortal.onUploadComplete([]() {
         LOG_MAIN("WebPortal: Upload complete callback!");
         changeState(STATE_PLAYING);
+        // Set flag AFTER 'changeState', because changeState(WIFI->PLAYING) resets it
+        isCustomFigurineActive = true; 
         audioManager.playFile(FILE_CUSTOM_STORY);
     });
     
@@ -345,11 +346,13 @@ void loop() {
     
     static unsigned long comboStart = 0;
     static unsigned long lastComboActiveTime = 0;
+    static unsigned long comboReleaseStart = 0;
     
     bool bothPressed = (digitalRead(PIN_BTN_VOL) == HIGH && digitalRead(PIN_BTN_CTRL) == HIGH);
 
     if (bothPressed) {
         lastComboActiveTime = millis();
+        comboReleaseStart = 0; 
         if (!isComboMode) {
             LOG_MAIN("Combo buttons detected - entering Combo Mode");
             isComboMode = true; 
@@ -361,27 +364,36 @@ void loop() {
         }
         
         if (millis() - comboStart > 3000) { 
-            if (isCustomFigurineActive || lastScannedTag.indexOf("192.168") != -1) {
-                if (currentState == STATE_BT_MODE) {
-                    LOG_MAIN("  Combo BLOCKED in BT mode. Flash error.");
-                     for(int i=0; i<3; i++) {
-                        led.setColor(255, 0, 0);
-                        delay(200);
-                        theme.setLed("bt_mode", led);
-                        delay(200);
-                    }
-                    comboStart = 0; 
-                    while(digitalRead(PIN_BTN_VOL) == HIGH || digitalRead(PIN_BTN_CTRL) == HIGH) delay(50);
-                } else {
-                    LOG_MAIN("Combo: 3 seconds - switching to WIFI mode");
-                     changeState(STATE_WIFI_MODE);
-                     comboStart = 0; 
-                     while(digitalRead(PIN_BTN_VOL) == HIGH || digitalRead(PIN_BTN_CTRL) == HIGH) delay(50);
+            // Allow WiFi mode entry regardless of active tag
+            if (currentState == STATE_BT_MODE) {
+                LOG_MAIN("  Combo BLOCKED in BT mode. Flash error.");
+                 for(int i=0; i<3; i++) {
+                    led.setColor(255, 0, 0);
+                    delay(200);
+                    theme.setLed("bt_mode", led);
+                    delay(200);
                 }
+                comboStart = 0; 
+                while(digitalRead(PIN_BTN_VOL) == HIGH || digitalRead(PIN_BTN_CTRL) == HIGH) delay(50);
+            } else {
+                LOG_MAIN("Combo: 3 seconds - switching to WIFI mode");
+                 changeState(STATE_WIFI_MODE);
+                 comboStart = 0; 
+                 while(digitalRead(PIN_BTN_VOL) == HIGH || digitalRead(PIN_BTN_CTRL) == HIGH) delay(50);
             }
         }
     } else {
-        comboStart = 0; 
+        // Debounce: Only clear combo timer if released for > 100ms
+        if (comboStart > 0) {
+            if (comboReleaseStart == 0) comboReleaseStart = millis();
+            
+            if (millis() - comboReleaseStart > 100) {
+                comboStart = 0; // Confirmed release
+            }
+        } else {
+            comboStart = 0;
+        }
+
         if (isComboMode && (millis() - lastComboActiveTime > 1000)) {
              LOG_MAIN("Combo buttons released (cooldown passed) - exiting Combo Mode");
              isComboMode = false;
