@@ -1,5 +1,8 @@
 #pragma once
 
+// FIRMWARE VERSION
+#define FIRMWARE_VERSION "1.0.0"
+
 // WIFI
 #define WIFI_SSID "SunToy"
 #define WIFI_PASS "" 

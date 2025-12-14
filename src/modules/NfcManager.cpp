@@ -23,8 +23,8 @@ void NfcManager::begin() {
     LOG_NFC_F("  I2C Pins: SDA=%d, SCL=%d", _pinSda, _pinScl);
     
     Wire.begin(_pinSda, _pinScl);
-    Wire.setClock(100000); 
-    Wire.setTimeOut(3000); 
+    Wire.setClock(50000); 
+    Wire.setTimeOut(10000); 
 
     _nfc.begin();
     
@@ -41,9 +41,9 @@ void NfcManager::begin() {
     _nfc.SAMConfig();
     LOG_NFC("SAMConfig complete");
     
-    LOG_NFC("Starting NFC task on Core 0...");
+    LOG_NFC("Starting NFC task on Core 0 with priority 3...");
     xTaskCreatePinnedToCore(
-        NfcManager::taskEntry, "NFC_Task", 4096, this, 1, &_taskHandle, 0
+        NfcManager::taskEntry, "NFC_Task", 8192, this, 3, &_taskHandle, 0 
     );
     LOG_NFC("NFC initialization complete");
 }
@@ -64,48 +64,67 @@ void NfcManager::taskEntry(void* parameter) {
 
 void NfcManager::loopTask() {
     LOG_NFC("Task started - entering main loop");
+    
     while(true) {
-        uint8_t uid[7]; uint8_t uidLength;
-        if (_nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, 50)) {
+        uint8_t uid[7]; 
+        uint8_t uidLength;
+        if (_nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, 100)) {
+            vTaskDelay(30 / portTICK_PERIOD_MS);
+            
             String uidStr = "";
             for (uint8_t i = 0; i < uidLength; i++) {
                 if (uid[i] < 0x10) uidStr += "0";
                 uidStr += String(uid[i], HEX);
             }
             uidStr.toUpperCase();
-            uint8_t dataBuffer[32]; 
+            uint8_t dataBuffer[16]; 
+            memset(dataBuffer, 0, sizeof(dataBuffer));
+            
             String content = "";
             bool error = false;
+            int errorCount = 0;
             
             for (uint8_t page = 4; page < 10; page++) {
                 bool pageRead = false;
-                for(int r=0; r<3; r++) {
+                for(int r = 0; r < 5; r++) {
+                    memset(dataBuffer, 0, sizeof(dataBuffer));
+                    
                     if (_nfc.ntag2xx_ReadPage(page, dataBuffer)) {
                         pageRead = true;
                         break;
                     }
-                    vTaskDelay(10 / portTICK_PERIOD_MS);
+                    vTaskDelay(30 / portTICK_PERIOD_MS);
                 }
                 
                 if (pageRead) {
                     for (int i = 0; i < 4; i++) {
                         char c = (char)dataBuffer[i];
-                        if (c != 0 && c != 0xFE && (isalnum(c) || c == ':' || c == '/' || c == '.' || c == '-' || c == '_')) 
-                            content += c;
+                        if (c >= 0x20 && c <= 0x7E) { 
+                            if (isalnum(c) || c == ':' || c == '/' || c == '.' || c == '-' || c == '_') {
+                                content += c;
+                            }
+                        }
                     }
                 } else {
-                    error = true;
-                    break;
+                    errorCount++;
+                    if (errorCount >= 2) {
+                        error = true;
+                        LOG_NFC_F("Page %d read failed after 5 retries", page);
+                        break;
+                    }
                 }
-                vTaskDelay(5 / portTICK_PERIOD_MS);
+                vTaskDelay(20 / portTICK_PERIOD_MS);
             }
-            
-            if (!error && _callback) {
-                _callback(uidStr, content);
-                vTaskDelay(1500 / portTICK_PERIOD_MS);
-            } else if (error) {
+            if (!error && content.length() > 3 && _callback) {
+                if (content.indexOf("cmd:") != -1 || content.indexOf("192.168") != -1) {
+                    LOG_NFC_F("Valid tag content: %s", content.c_str());
+                    _callback(uidStr, content);
+                    vTaskDelay(2000 / portTICK_PERIOD_MS); 
+                } else {
+                    LOG_NFC_F("Invalid content (no cmd: or IP): %s", content.c_str());
+                }
             }
         }
-        vTaskDelay(150 / portTICK_PERIOD_MS);
+        vTaskDelay(300 / portTICK_PERIOD_MS);
     }
 }

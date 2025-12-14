@@ -9,6 +9,7 @@
 class WebPortal {
 public:
     void begin();
+    void stop();
     void loop();
     bool isClientConnected();
     void onVolumeChange(std::function<void(int)> callback);
@@ -16,7 +17,7 @@ public:
     void onUploadComplete(std::function<void()> callback);
 
 private:
-    AsyncWebServer* server;
+    AsyncWebServer* server = nullptr;
     std::function<void(int)> _volumeCallback;
     std::function<void(int, int, int)> _ledCallback;
     std::function<void()> _uploadCallback;

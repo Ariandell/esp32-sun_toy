@@ -13,7 +13,7 @@ public:
 private:
     uint8_t _pin;
     int _state;
-    unsigned long _startTime;
+    unsigned long _startTime = 0;
     std::function<void()> _clickCb;
     std::function<void()> _longCb;
 };

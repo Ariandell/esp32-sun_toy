@@ -3,8 +3,11 @@
 #include <Audio.h>
 #include <vector>
 #include <SD.h>
+#include <Preferences.h>
 #include "BluetoothA2DPSink.h"
 #include "Config.h"
+
+typedef std::function<void(bool)> AudioStateCallback;
 
 class AudioManager {
 public:
@@ -16,6 +19,8 @@ public:
     void playFolder(String folderPath);
     void playNext();
     void stop();
+    void fadeOut(int durationMs = 100);
+    void clearBuffer();
     
     void pause();
     void resume();
@@ -30,6 +35,7 @@ public:
     void stopBluetooth();  
     
     BluetoothA2DPSink* getBtSink(); 
+    void onStateChange(AudioStateCallback cb);
 
 private:
     Audio _audio;
@@ -39,6 +45,9 @@ private:
     int _trackIndex;
     bool _isBtMode;
     bool _btInitialized;
+    AudioStateCallback _stateCallback;
+    Preferences _prefs;
     
     void loadPlaylist(String folder);
+    void notifyStateChange(bool isPlaying);
 };

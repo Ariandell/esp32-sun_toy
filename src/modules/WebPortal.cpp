@@ -6,12 +6,26 @@ static WebPortal* instance = nullptr;
 
 void WebPortal::begin() {
     instance = this;
+    if (server) {
+        delete server;
+        server = nullptr;
+    }
+    
     WiFi.mode(WIFI_AP);
     WiFi.softAP(WIFI_SSID, WIFI_PASS);
     Serial.print("AP IP: "); Serial.println(WiFi.softAPIP());
     server = new AsyncWebServer(80);
     setupRoutes();
     server->begin();
+}
+
+void WebPortal::stop() {
+    if (server) {
+        server->end();
+        delete server;
+        server = nullptr;
+    }
+    instance = nullptr;
 }
 
 void WebPortal::loop() {}
