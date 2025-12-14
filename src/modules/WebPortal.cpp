@@ -10,11 +10,14 @@ void WebPortal::begin() {
         delete server;
         server = nullptr;
     }
-    
+
     WiFi.mode(WIFI_AP);
     WiFi.softAP(WIFI_SSID, WIFI_PASS);
     Serial.print("AP IP: "); Serial.println(WiFi.softAPIP());
+
     server = new AsyncWebServer(80);
+    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+    
     setupRoutes();
     server->begin();
 }
@@ -39,22 +42,25 @@ void WebPortal::onLedChange(std::function<void(int, int, int)> callback) { _ledC
 void WebPortal::onUploadComplete(std::function<void()> callback) { _uploadCallback = callback; }
 
 void WebPortal::setupRoutes() {
+    server->on("/ping", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(200, "text/plain", "pong");
+    });
     server->on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-        if (SD.exists("/web/index.html")) request->send(SD, "/web/index.html", "text/html");
-        else request->send(200, "text/plain", "Error: index.html not found");
+        if (SD.exists("/web/index.html")) {
+            request->send(SD, "/web/index.html", "text/html");
+        } else {
+            request->send(200, "text/plain", "Error: index.html not found (Check SD/web folder)");
+        }
     });
 
-    server->serveStatic("/style.css", SD, "/web/style.css");
-    server->serveStatic("/script.js", SD, "/web/script.js");
-    server->serveStatic("/assets", SD, "/background"); 
-
+    server->serveStatic("/style.css", SD, "/web/style.css").setCacheControl("max-age=3600");
+    server->serveStatic("/script.js", SD, "/web/script.js").setCacheControl("max-age=3600");
+    server->serveStatic("/assets", SD, "/background").setCacheControl("max-age=3600"); 
 
     server->on("/volume", HTTP_GET, [this](AsyncWebServerRequest *request){
         if (request->hasParam("val")) {
             int val = request->getParam("val")->value().toInt();
-            if (_volumeCallback) {
-                _volumeCallback(val);
-            }
+            if (_volumeCallback) _volumeCallback(val);
             request->send(200, "text/plain", "OK");
         } else request->send(400);
     });
@@ -80,8 +86,14 @@ void WebPortal::setupRoutes() {
     }, handleUpload);
     
     server->on("/rollback", HTTP_GET, [](AsyncWebServerRequest *request){
-        if (Update.canRollBack()) { Update.rollBack(); request->send(200, "text/plain", "OK"); delay(1000); ESP.restart(); }
-        else request->send(400, "text/plain", "Fail");
+        if (Update.canRollBack()) { 
+            Update.rollBack(); 
+            request->send(200, "text/plain", "OK"); 
+            delay(1000); 
+            ESP.restart(); 
+        } else {
+            request->send(400, "text/plain", "Fail");
+        }
     });
 }
 
@@ -96,6 +108,8 @@ void WebPortal::handleUpload(AsyncWebServerRequest *request, String filename, si
     static File file;
     if (!index) {
         if(!SD.exists("/records")) SD.mkdir("/records");
+        if(SD.exists(FILE_CUSTOM_STORY)) SD.remove(FILE_CUSTOM_STORY);
+        
         file = SD.open(FILE_CUSTOM_STORY, FILE_WRITE);
     }
     if (file) file.write(data, len);
