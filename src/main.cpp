@@ -79,8 +79,6 @@ void changeState(AppState newState) {
     if (currentState == STATE_WIFI_MODE) {
         webPortal.stop();
         delay(100);
-        
-        // Play WiFi off sound before disconnecting
         if (SD.exists("/system/wifi_off.wav")) {
             audioManager.playFile("/system/wifi_off.wav");
             unsigned long wifiSoundStart = millis();
@@ -113,10 +111,8 @@ void changeState(AppState newState) {
             break;
         case STATE_BT_MODE:
             theme.setLed("bt_mode", led);
-            // Play BT on sound before starting bluetooth
             if (SD.exists("/system/bt_on.wav")) {
                 audioManager.playFile("/system/bt_on.wav");
-                // Wait for sound to finish before BT takes over I2S
                 unsigned long btSoundStart = millis();
                 while (audioManager.isPlaying() && millis() - btSoundStart < 3000) {
                     audioManager.loop();
@@ -131,7 +127,7 @@ void changeState(AppState newState) {
             break;
 
         case STATE_WIFI_MODE:
-            audioManager.stop();  // Stop any playing audio first
+            audioManager.stop(); 
             delay(100);
             theme.setLed("wifi_start", led); 
             webPortal.begin(); 
